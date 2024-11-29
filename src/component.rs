@@ -19,8 +19,8 @@ pub trait Component {
         let _ = (ctx, payload);
         Err(Error::Unimplemented)
     }
-    fn async_call_handle(&self, ctx: RcContext, payload: RawPayload) -> Result<()> {
-        let _ = (ctx, payload);
+    fn async_call_handle(&self, ctx: RcContext, seq: usize, payload: RawPayload) -> Result<()> {
+        let _ = (ctx, seq, payload);
         Err(Error::Unimplemented)
     }
     fn async_poll_handle(&self, ctx: RcContext, seq: usize) -> Result<Poll<RawPayload>> {
