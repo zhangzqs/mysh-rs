@@ -5,6 +5,7 @@ use std::{rc::Rc, task::Poll};
 pub struct ComponentType(String);
 
 pub enum Error {
+    ComponentNotFound(ComponentType),
     Unimplemented,
 }
 
