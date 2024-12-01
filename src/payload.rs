@@ -36,6 +36,7 @@ pub trait Payload: Sized + serde::Serialize + serde::de::DeserializeOwned {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct RawPayload {
     encode_type: EncodeType,
     payload_type: PayloadType,

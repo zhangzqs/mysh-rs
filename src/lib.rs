@@ -1,3 +1,4 @@
-mod component;
+mod node;
+mod mqtt_scheduler;
 mod payload;
-mod scheduler;
+mod simple_scheduler;
