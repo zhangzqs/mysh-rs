@@ -5,20 +5,15 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+use uuid::Uuid;
+
 use crate::{
     node::{
-        AsyncCallbackOnce, Context, Error, MethodName, Node, NodeID, RcContext, Result, TopicName,
+        AsyncCallID, AsyncCallbackOnce, Context, Error, MethodName, Node, NodeID, RcContext,
+        Result, TopicName,
     },
     payload::RawPayload,
 };
-
-/// 全局消息计数器
-static MSG_SEQ_COUNT: AtomicUsize = AtomicUsize::new(0);
-
-fn gen_msg_seq() -> usize {
-    MSG_SEQ_COUNT.fetch_add(1, Ordering::SeqCst);
-    MSG_SEQ_COUNT.load(Ordering::SeqCst)
-}
 
 #[derive(Default)]
 pub struct Scheduler {
@@ -58,9 +53,10 @@ impl Scheduler {
     pub fn schedule_once(&self) {
         if let Some(async_element) = self.async_queue.borrow_mut().pop_front() {
             if let Some(node) = self.node_registry.borrow().get(&async_element.to) {
-                if let Ok(poll) = node
-                    .async_poll_handle(self.gen_ctx(async_element.to.clone()), async_element.seq)
-                {
+                if let Ok(poll) = node.async_poll_handle(
+                    self.gen_ctx(async_element.to.clone()),
+                    async_element.call_id,
+                ) {
                     match poll {
                         std::task::Poll::Ready(payload) => {
                             let callback = async_element.callback_once;
@@ -91,7 +87,7 @@ impl Scheduler {
 
 struct AsyncQueueElement {
     to: NodeID,
-    seq: usize,
+    call_id: AsyncCallID,
     callback_once: AsyncCallbackOnce,
 }
 
@@ -109,58 +105,47 @@ struct ContextImpl {
 }
 
 impl Context for ContextImpl {
-    fn broadcast_topic(&self, topic: TopicName, payload: RawPayload) {
+    fn broadcast_topic(&self, topic: TopicName, payload: RawPayload) -> Result<()> {
         self.topic_queue.borrow_mut().push_back((topic, payload));
+        Ok(())
     }
 
-    fn subscribe_topic(&self, topic: TopicName) {
+    fn subscribe_topic(&self, topic: TopicName) -> Result<()> {
         let mut topic_subscriber_list = self.subscriber.borrow_mut();
         let subscribers = topic_subscriber_list.entry(topic).or_default();
         if !subscribers.contains(&self.node_id) {
             subscribers.push_back(self.node_id.clone());
         }
+        Ok(())
     }
 
-    fn unsubscribe_topic(&self, topic: TopicName) {
+    fn unsubscribe_topic(&self, topic: TopicName) -> Result<()> {
         let node = &self.node_id;
         self.subscriber.borrow_mut().entry(topic).and_modify(|x| {
             x.retain(|x| x != node);
         });
-    }
-
-    fn sync_call(
-        &self,
-        node_type: NodeID,
-        method_name: MethodName,
-        payload: RawPayload,
-    ) -> Result<RawPayload> {
-        if let Some(c) = self.nodes.borrow().get(&node_type) {
-            c.sync_call_handle(Rc::new(self.clone()), method_name, payload)
-        } else {
-            log::error!("not found node {:?}", node_type);
-            Err(Error::ComponentNotFound(node_type))
-        }
+        Ok(())
     }
 
     fn async_call(
         &self,
-        node_type: NodeID,
+        node_id: NodeID,
         method_name: MethodName,
         payload: RawPayload,
         callback: AsyncCallbackOnce,
     ) -> Result<()> {
-        if let Some(c) = self.nodes.borrow().get(&node_type) {
-            let seq = gen_msg_seq();
-            c.async_call_handle(Rc::new(self.clone()), seq, method_name, payload)?;
+        if let Some(c) = self.nodes.borrow().get(&node_id) {
+            let call_id = AsyncCallID(Uuid::new_v4());
+            c.async_call_handle(Rc::new(self.clone()), call_id, method_name, payload)?;
             self.async_queue.borrow_mut().push_back(AsyncQueueElement {
-                to: node_type,
-                seq,
+                to: node_id,
+                call_id,
                 callback_once: callback,
             });
             Ok(())
         } else {
-            log::error!("not found node {:?}", node_type);
-            Err(Error::ComponentNotFound(node_type))
+            log::error!("not found node {:?}", node_id);
+            Err(Error::ComponentNotFound(node_id))
         }
     }
 }

@@ -16,30 +16,24 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub type RcContext = Rc<dyn Context>;
 
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+pub struct AsyncCallID(pub uuid::Uuid);
+
 /// 非阻塞消息处理函数
 pub trait Node {
     fn node_id(&self) -> NodeID;
-    fn sync_call_handle(
-        &self,
-        ctx: RcContext,
-        method_name: MethodName,
-        payload: RawPayload,
-    ) -> Result<RawPayload> {
-        let _ = (ctx, payload, method_name);
-        Err(Error::Unimplemented)
-    }
     fn async_call_handle(
         &self,
         ctx: RcContext,
-        seq: usize,
+        call_id: AsyncCallID,
         method_name: MethodName,
         payload: RawPayload,
     ) -> Result<()> {
-        let _ = (ctx, seq, payload, method_name);
+        let _ = (ctx, call_id, payload, method_name);
         Err(Error::Unimplemented)
     }
-    fn async_poll_handle(&self, ctx: RcContext, seq: usize) -> Result<Poll<RawPayload>> {
-        let _ = (ctx, seq);
+    fn async_poll_handle(&self, ctx: RcContext, call_id: AsyncCallID) -> Result<Poll<RawPayload>> {
+        let _ = (ctx, call_id);
         Err(Error::Unimplemented)
     }
     fn message_handle(&self, ctx: RcContext, topic: TopicName, payload: RawPayload) -> Result<()> {
@@ -58,26 +52,18 @@ pub struct TopicName(String);
 
 pub trait Context {
     /// 发送话题消息
-    fn broadcast_topic(&self, topic: TopicName, payload: RawPayload);
+    fn broadcast_topic(&self, topic: TopicName, payload: RawPayload) -> Result<()>;
 
     /// 订阅话题
-    fn subscribe_topic(&self, topic: TopicName);
+    fn subscribe_topic(&self, topic: TopicName) -> Result<()>;
 
     /// 解除订阅话题
-    fn unsubscribe_topic(&self, topic: TopicName);
-
-    /// 同步RPC调用
-    fn sync_call(
-        &self,
-        node_type: NodeID,
-        method_name: MethodName,
-        payload: RawPayload,
-    ) -> Result<RawPayload>;
+    fn unsubscribe_topic(&self, topic: TopicName) -> Result<()>;
 
     /// 异步RPC调用
     fn async_call(
         &self,
-        node_type: NodeID,
+        node_id: NodeID,
         method_name: MethodName,
         payload: RawPayload,
         callback: AsyncCallbackOnce,

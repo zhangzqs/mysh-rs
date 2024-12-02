@@ -1,4 +1,4 @@
 mod node;
-mod mqtt_scheduler;
+mod mqtt_distributed_scheduler;
 mod payload;
-mod simple_scheduler;
+mod local_single_scheduler;
