@@ -225,8 +225,8 @@ mod tests {
 
         fn message_handle(
             &self,
-            ctx: RcContext,
-            topic: TopicName,
+            _ctx: RcContext,
+            _topic: TopicName,
             payload: crate::payload::RawPayload,
         ) -> crate::node::Result<()> {
             println!("node a recv message: {payload:?}");
@@ -235,9 +235,9 @@ mod tests {
 
         fn async_poll_handle(
             &self,
-            ctx: RcContext,
+            _ctx: RcContext,
             call_id: crate::node::AsyncCallID,
-            method_name: MethodName,
+            _method_name: MethodName,
             payload: crate::payload::RawPayload,
         ) -> std::task::Poll<crate::node::Result<crate::payload::RawPayload>> {
             let ping_text = PingPayload::from_raw_payload(&payload).unwrap().ping_text;
